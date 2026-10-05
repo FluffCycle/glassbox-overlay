@@ -27,97 +27,135 @@ Tested on Fedora with KDE Plasma 6.
 
 ## Installation
 
-Install the dependencies for your distribution.
+1. Install the dependencies and [pipx](https://pipx.pypa.io) for your
+   distribution.
 
-**Fedora**
+   **Fedora**
+
+   ```sh
+   sudo dnf install pipx gtk-layer-shell webkit2gtk4.1 python3-gobject \
+       python3-cairo gstreamer1-plugins-good libayatana-appindicator-gtk3
+   ```
+
+   Fedora's own repositories can't play every video format. If an alert
+   video doesn't play, enable [RPM Fusion](https://rpmfusion.org/Configuration)
+   and install `gstreamer1-plugin-libav`.
+
+   **Arch Linux**
+
+   ```sh
+   sudo pacman -S python-pipx gtk-layer-shell webkit2gtk-4.1 python-gobject \
+       python-cairo gst-plugins-good gst-libav libayatana-appindicator
+   ```
+
+   **Debian / Ubuntu**
+
+   ```sh
+   sudo apt install pipx gir1.2-gtklayershell-0.1 gir1.2-webkit2-4.1 \
+       python3-gi python3-gi-cairo gstreamer1.0-plugins-good \
+       gstreamer1.0-libav gir1.2-ayatanaappindicator3-0.1
+   ```
+
+2. Install Glassbox Overlay:
+
+   ```sh
+   pipx install --system-site-packages git+https://github.com/FluffCycle/glassbox-overlay.git
+   ```
+
+   This puts the `glassbox-overlay` command in `~/.local/bin`.
+   `--system-site-packages` is required: it lets Glassbox Overlay use the GTK
+   and WebKit Python bindings you installed in step 1. If your shell can't
+   find the command afterwards, run `pipx ensurepath` and open a new terminal.
+
+3. Add it to your app launcher:
+
+   ```sh
+   glassbox-overlay --install-desktop-entry
+   ```
+
+To **update**, run the `pipx install` command again with `--force`. Your
+settings are kept.
+
+To **uninstall**:
 
 ```sh
-sudo dnf install gtk-layer-shell webkit2gtk4.1 python3-gobject python3-cairo \
-    gstreamer1-plugins-good libayatana-appindicator-gtk3
+glassbox-overlay --disable-autostart
+glassbox-overlay --remove-desktop-entry
+pipx uninstall glassbox-overlay
 ```
 
-Fedora's own repositories can't play every video format. If an alert video
-doesn't play, enable [RPM Fusion](https://rpmfusion.org/Configuration) and
-install `gstreamer1-plugin-libav`.
+Your settings stay in `~/.config/glassbox-overlay/`; delete that folder too
+if you don't want them.
 
-**Arch Linux**
-
-```sh
-sudo pacman -S gtk-layer-shell webkit2gtk-4.1 python-gobject python-cairo \
-    gst-plugins-good gst-libav libayatana-appindicator
-```
-
-**Debian / Ubuntu**
-
-```sh
-sudo apt install gir1.2-gtklayershell-0.1 gir1.2-webkit2-4.1 python3-gi \
-    python3-gi-cairo gstreamer1.0-plugins-good gstreamer1.0-libav \
-    gir1.2-ayatanaappindicator3-0.1
-```
-
-Then get the code:
-
-```sh
-git clone https://github.com/FluffCycle/glassbox-overlay.git
-cd glassbox-overlay
-```
+From a clone, `pipx install --system-site-packages -e .` installs your local
+copy, and edits take effect without reinstalling. You can also run it straight
+from the clone with `python3 -m glassbox_overlay`.
 
 ## Usage
 
-1. Put your overlay URL on the first line of a file named
-   `glassbox-overlay-source.txt`, next to `glassbox-overlay.py`:
+1. Open **Glassbox Overlay** from your app launcher, or run `glassbox-overlay`
+   in a terminal.
 
-   ```sh
-   echo "https://example.com/your-overlay-url" > glassbox-overlay-source.txt
-   ```
+2. The first time, it asks for your overlay URL: the browser-source link you'd
+   add to OBS. Paste it and click **Save and Start**.
 
    Treat your overlay URL like a password: anyone who has it can see your
-   alerts. The included `.gitignore` keeps this file out of git so you don't
-   publish it by accident.
+   alerts. It's saved in `~/.config/glassbox-overlay/glassbox-overlay.conf`,
+   which only you can read.
 
-2. Optionally, change the settings in `glassbox-overlay.conf` (see
-   [Settings](#settings)).
-
-3. Start Glassbox Overlay by double-clicking `glassbox-overlay.py` in your file
-   manager. In Dolphin, choose **Execute** when it asks what to do with the
-   file. Or run it from a terminal:
-
-   ```sh
-   ./glassbox-overlay.py
-   ```
+3. To start it automatically when you log in, tick **Start at login** in its
+   tray icon menu (see [Tray icon](#tray-icon-and-stopping-it)), or run
+   `glassbox-overlay --enable-autostart`.
 
 Only one Glassbox Overlay can run at a time, so starting it twice by accident
 doesn't play every alert twice. If it's already running, you'll get a pop-up
-saying so. To run several overlays at once, for example one per monitor, set
-`allow_multiple_instances = true` in `glassbox-overlay.conf`.
+saying so. To run several overlays at once, see
+[Several overlays](#several-overlays).
 
-If something goes wrong at startup, such as a missing URL or a bad setting,
-Glassbox Overlay shows an error dialog explaining why. When it's run from a
-terminal, it prints the error there instead.
+If something goes wrong at startup, such as a bad setting, Glassbox Overlay
+shows an error dialog explaining why. When it's run from a terminal, it prints
+the error there instead.
 
 ### Settings
 
-Settings live in `glassbox-overlay.conf`, next to `glassbox-overlay.py`. Open
-it in any text editor, change a value, save, and restart Glassbox Overlay.
-Each setting is explained in the file.
+Settings live in `~/.config/glassbox-overlay/glassbox-overlay.conf`, which is
+created the first time Glassbox Overlay starts. Open it with **Open settings**
+in the tray icon menu, or in any text editor. Change a value, save, and restart
+Glassbox Overlay. Each setting is explained in the file.
 
 You can also override any setting for a single run with a command-line option.
 Command-line options always win over the config file. For example, to
 try a different URL on monitor 1:
 
 ```sh
-./glassbox-overlay.py --monitor 1 https://example.com/another-overlay-url
+glassbox-overlay --monitor 1 https://example.com/another-overlay-url
 ```
 
 | Config setting | Command-line option | Description |
 | --- | --- | --- |
+| `url` | `url` (first argument) | Your overlay URL. If it's blank, Glassbox Overlay asks for it when it starts. |
 | `monitor` | `-m N`, `--monitor N` | Show the overlay on monitor `N` (0, 1, ...). Blank or unset uses the primary monitor. |
 | `canvas_width` | `--canvas-width W` | The width your overlay page was designed for, i.e. your OBS or overlay-tool canvas width. The page is scaled so that width fills the monitor. Default: `1920`. `0` turns off scaling. |
 | `opacity` | `--opacity X` | Opacity of the whole overlay, from `0.0` to `1.0`. Default: `1.0`. |
 | `tray` | `--no-tray` | Show the system tray icon. Default: `true`. |
 | `debug` | `--debug` | Draw a red border around the overlay so you can see where it is, and enable the WebKit inspector. Default: `false`. |
 | `allow_multiple_instances` | `--allow-multiple-instances` | Allow more than one Glassbox Overlay to run at the same time. Default: `false`. |
-| — | `url` (first argument) | Use this overlay URL instead of the one in `glassbox-overlay-source.txt`. |
+| — | `-c FILE`, `--config FILE` | Use a different config file. It's created if it doesn't exist. |
+
+### Several overlays
+
+To run several overlays at once, for example one per monitor, give each its
+own config file and set `allow_multiple_instances = true` in each:
+
+```sh
+glassbox-overlay --config ~/.config/glassbox-overlay/second-monitor.conf
+```
+
+The first run asks for that overlay's URL, just like the default one.
+`--install-desktop-entry` and `--enable-autostart` remember a `--config` given
+with them, but there's only one launcher entry and one autostart entry, so for
+the other overlays add the command to your desktop's autostart settings
+yourself.
 
 ### Tray icon and stopping it
 
@@ -127,13 +165,15 @@ tray. Click or right-click it for:
 
 - **Reload overlay:** reload the page, e.g. after changing the overlay in your
   streaming tool.
+- **Open settings:** open the config file in your text editor.
+- **Start at login:** start Glassbox Overlay automatically when you log in.
 - **Quit:** close Glassbox Overlay.
 
 Without the tray icon (no AppIndicator library, or `--no-tray`), press Ctrl+C
 in the terminal it's running in, or run:
 
 ```sh
-pkill -f glassbox-overlay.py
+pkill -f bin/glassbox-overlay
 ```
 
 If the page fails to load or WebKit's renderer crashes, the page reloads
@@ -141,10 +181,17 @@ automatically.
 
 ### Start at login
 
-- **KDE Plasma:** open System Settings → Autostart → Add… → Add Application,
-  and enter the full path to `glassbox-overlay.py` as the command.
-- **Other desktops:** run `/path/to/glassbox-overlay.py` from your compositor's startup
-  config, for example `exec` in Sway or `exec-once` in Hyprland.
+Tick **Start at login** in the tray icon menu, or run:
+
+```sh
+glassbox-overlay --enable-autostart    # turn it on
+glassbox-overlay --disable-autostart   # turn it off
+```
+
+This adds an entry to `~/.config/autostart/`, which KDE Plasma and most other
+desktops read. On Sway, Hyprland and other compositors that don't, run
+`~/.local/bin/glassbox-overlay` from your compositor's startup config instead,
+for example `exec` in Sway or `exec-once` in Hyprland.
 
 ## How it works
 
@@ -160,23 +207,29 @@ automatically.
 ## Troubleshooting
 
 - **Nothing shows up, or the screen goes black:** try
-  `WEBKIT_DISABLE_DMABUF_RENDERER=1 ./glassbox-overlay.py`.
+  `WEBKIT_DISABLE_DMABUF_RENDERER=1 glassbox-overlay`.
+- **"The Python module 'gi' is missing":** install the packages for your
+  distribution under [Installation](#installation). If they're installed,
+  Glassbox Overlay was installed without `--system-site-packages`; run the
+  `pipx install` command again with `--force`.
+- **`glassbox-overlay: command not found`:** run `pipx ensurepath`, then open
+  a new terminal.
 - **No tray icon:** install the AppIndicator package listed for your
   distribution under [Installation](#installation). The terminal shows "No
   AppIndicator library found" when it's missing.
-- **"gtk-layer-shell is not installed":** install the gtk-layer-shell package
-  for your distribution (see [Installation](#installation)).
-- **"The compositor does not support wlr-layer-shell":** you're on GNOME or an
-  X11 session. Neither is supported.
-- **Double-clicking opens the script in a text editor instead of running it:**
-  make sure it's executable (`chmod +x glassbox-overlay.py`, or Properties →
-  Permissions → "Is executable" in Dolphin).
-- **The overlay is on the wrong screen:** set `monitor` in
-  `glassbox-overlay.conf`.
+- **"gtk-layer-shell is not installed"** or **"WebKit2GTK 4.1 is not
+  installed":** install the packages for your distribution (see
+  [Installation](#installation)).
+- **"Your desktop doesn't support the wlr-layer-shell protocol":** you're on
+  GNOME or an X11 session. Neither is supported.
+- **The overlay is on the wrong screen:** set `monitor` in the
+  [settings](#settings).
 - **Alerts are the wrong size or in the wrong place:** set `canvas_width` in
-  `glassbox-overlay.conf` to the canvas width your overlay was designed for.
+  the [settings](#settings) to the canvas width your overlay was designed for.
 - **The alert shows up but the video doesn't play:** you're missing a GStreamer
   codec. See the notes under [Installation](#installation).
+- **Wrong overlay URL:** change `url` in the [settings](#settings), or blank it
+  to be asked again on the next start.
 
 ## License
 

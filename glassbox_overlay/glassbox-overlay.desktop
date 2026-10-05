@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Glassbox Overlay
+GenericName=Stream Alert Overlay
+Comment=Show your stream alerts on top of your whole screen
+Exec=glassbox-overlay
+Icon=glassbox-overlay
+Terminal=false
+StartupNotify=false
+Categories=AudioVideo;Video;Utility;
+Keywords=overlay;alerts;stream;obs;lumia;streamelements;streamlabs;browser source;

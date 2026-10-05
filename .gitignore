@@ -1,6 +1,19 @@
-# Your private overlay URL
+# Your private overlay URL (old location; it now goes in
+# ~/.config/glassbox-overlay/glassbox-overlay.conf)
 glassbox-overlay-source.txt
 
 # Python
 __pycache__/
 *.pyc
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# Packaging
+build/
+dist/
+*.egg-info/
