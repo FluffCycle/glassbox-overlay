@@ -64,32 +64,54 @@ cd glassbox-overlay
 
 ## Usage
 
-Pass the overlay URL on the command line:
+1. Put your overlay URL on the first line of a file named
+   `glassbox-overlay-source.txt`, next to `glassbox-overlay.py`:
+
+   ```sh
+   echo "https://example.com/your-overlay-url" > glassbox-overlay-source.txt
+   ```
+
+   Treat your overlay URL like a password: anyone who has it can see your
+   alerts. The included `.gitignore` keeps this file out of git so you don't
+   publish it by accident.
+
+2. Optionally, change the settings in `glassbox-overlay.conf` (see
+   [Settings](#settings)).
+
+3. Start Glassbox Overlay by double-clicking `glassbox-overlay.py` in your file
+   manager. In Dolphin, choose **Execute** when it asks what to do with the
+   file. Or run it from a terminal:
+
+   ```sh
+   ./glassbox-overlay.py
+   ```
+
+If something goes wrong at startup, such as a missing URL or a bad setting,
+Glassbox Overlay shows an error dialog explaining why. When it's run from a
+terminal, it prints the error there instead.
+
+### Settings
+
+Settings live in `glassbox-overlay.conf`, next to `glassbox-overlay.py`. Open
+it in any text editor, change a value, save, and restart Glassbox Overlay.
+Each setting is explained in the file.
+
+You can also override any setting for a single run with a command-line option.
+Command-line options always win over the config file. For example, to
+try a different URL on monitor 1:
 
 ```sh
-./glassbox-overlay.py https://example.com/your-overlay-url
+./glassbox-overlay.py --monitor 1 https://example.com/another-overlay-url
 ```
 
-Or put it on the first line of a file named `glassbox-overlay-source.txt`, next to
-`glassbox-overlay.py`, and run the script with no arguments:
-
-```sh
-echo "https://example.com/your-overlay-url" > glassbox-overlay-source.txt
-./glassbox-overlay.py
-```
-
-Treat your overlay URL like a password: anyone who has it can see your alerts.
-Don't commit `glassbox-overlay-source.txt` to a public repository.
-
-### Options
-
-| Option | Description |
-| --- | --- |
-| `-m N`, `--monitor N` | Show the overlay on monitor `N` (0, 1, ...). By default it uses the primary monitor. |
-| `--canvas-width W` | The width your overlay page was designed for, i.e. your OBS or overlay-tool canvas width. The page is scaled so that width fills the monitor. Default: `1920`. `0` turns off scaling. |
-| `--opacity X` | Opacity of the whole overlay, from `0.0` to `1.0`. Default: `1.0`. |
-| `--no-tray` | Don't show the system tray icon. |
-| `--debug` | Draw a red border around the overlay so you can see where it is, and enable the WebKit inspector. |
+| Config setting | Command-line option | Description |
+| --- | --- | --- |
+| `monitor` | `-m N`, `--monitor N` | Show the overlay on monitor `N` (0, 1, ...). Blank or unset uses the primary monitor. |
+| `canvas_width` | `--canvas-width W` | The width your overlay page was designed for, i.e. your OBS or overlay-tool canvas width. The page is scaled so that width fills the monitor. Default: `1920`. `0` turns off scaling. |
+| `opacity` | `--opacity X` | Opacity of the whole overlay, from `0.0` to `1.0`. Default: `1.0`. |
+| `tray` | `--no-tray` | Show the system tray icon. Default: `true`. |
+| `debug` | `--debug` | Draw a red border around the overlay so you can see where it is, and enable the WebKit inspector. Default: `false`. |
+| — | `url` (first argument) | Use this overlay URL instead of the one in `glassbox-overlay-source.txt`. |
 
 ### Tray icon and stopping it
 
@@ -140,9 +162,13 @@ automatically.
   for your distribution (see [Installation](#installation)).
 - **"The compositor does not support wlr-layer-shell":** you're on GNOME or an
   X11 session. Neither is supported.
-- **The overlay is on the wrong screen:** use `--monitor N`.
-- **Alerts are the wrong size or in the wrong place:** set `--canvas-width` to
-  the canvas width your overlay was designed for.
+- **Double-clicking opens the script in a text editor instead of running it:**
+  make sure it's executable (`chmod +x glassbox-overlay.py`, or Properties →
+  Permissions → "Is executable" in Dolphin).
+- **The overlay is on the wrong screen:** set `monitor` in
+  `glassbox-overlay.conf`.
+- **Alerts are the wrong size or in the wrong place:** set `canvas_width` in
+  `glassbox-overlay.conf` to the canvas width your overlay was designed for.
 - **The alert shows up but the video doesn't play:** you're missing a GStreamer
   codec. See the notes under [Installation](#installation).
 

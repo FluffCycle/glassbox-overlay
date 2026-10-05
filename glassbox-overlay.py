@@ -10,6 +10,7 @@ Same approach as Discover: GTK3 + gtk-layer-shell + WebKit2GTK.
 """
 
 import argparse
+import configparser
 import ctypes.util
 import os
 import signal
@@ -18,7 +19,29 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_URL_FILE = SCRIPT_DIR / "glassbox-overlay-source.txt"
+CONFIG_FILE = SCRIPT_DIR / "glassbox-overlay.conf"
 TRAY_ICON = SCRIPT_DIR / "glassbox-overlay.svg"
+
+
+def fail(message):
+    """Exit with an error, also shown in a dialog when there's no terminal
+    to print it to (e.g. launched by double-clicking in a file manager)."""
+    print(message, file=sys.stderr)
+    if not sys.stderr.isatty():
+        try:
+            import gi
+            gi.require_version("Gtk", "3.0")
+            from gi.repository import Gtk
+            dialog = Gtk.MessageDialog(
+                message_type=Gtk.MessageType.ERROR,
+                buttons=Gtk.ButtonsType.CLOSE,
+                text="Glassbox Overlay couldn't start",
+            )
+            dialog.format_secondary_text(message)
+            dialog.run()
+        except Exception:
+            pass
+    sys.exit(1)
 
 
 def ensure_layer_shell_preloaded():
@@ -31,18 +54,60 @@ def ensure_layer_shell_preloaded():
         return
     lib = ctypes.util.find_library("gtk-layer-shell")
     if not lib:
-        sys.exit(
-            "gtk-layer-shell is not installed.\n"
-            "Install it with:  sudo dnf install gtk-layer-shell"
-        )
+        fail("gtk-layer-shell is not installed. Install the gtk-layer-shell "
+             "package for your distribution (see the README).")
     env = dict(os.environ)
     env["LD_PRELOAD"] = " ".join(filter(None, [lib, env.get("LD_PRELOAD")]))
     env["_GLASSBOX_PRELOADED"] = "1"
     os.execve(sys.executable, [sys.executable, *sys.argv], env)
 
 
+def load_config():
+    """Read option defaults from glassbox-overlay.conf, if it exists.
+
+    Command-line arguments override anything set here.
+    """
+    parser = configparser.ConfigParser()
+    try:
+        parser.read(CONFIG_FILE)
+    except configparser.Error as e:
+        fail(f"Couldn't read {CONFIG_FILE.name}:\n{e}")
+    if not parser.has_section("overlay"):
+        return {}
+    section = parser["overlay"]
+
+    getters = {
+        "monitor": section.getint,
+        "canvas_width": section.getint,
+        "opacity": section.getfloat,
+        "tray": section.getboolean,
+        "debug": section.getboolean,
+    }
+    for key in section:
+        if key not in getters:
+            print(f"{CONFIG_FILE.name}: ignoring unknown option '{key}'",
+                  file=sys.stderr)
+
+    config = {}
+    for key, get in getters.items():
+        if not section.get(key, "").strip():
+            continue  # unset or blank: keep the built-in default
+        try:
+            config[key] = get(key)
+        except ValueError:
+            fail(f"{CONFIG_FILE.name}: invalid value for '{key}': "
+                 f"{section[key]!r}")
+    if "tray" in config:
+        config["no_tray"] = not config.pop("tray")
+    return config
+
+
 def parse_args():
-    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    p = argparse.ArgumentParser(
+        description=__doc__.splitlines()[0],
+        epilog=f"Defaults can be changed in {CONFIG_FILE.name}; "
+               "command-line options override it.",
+    )
     p.add_argument(
         "url",
         nargs="?",
@@ -50,17 +115,18 @@ def parse_args():
     )
     p.add_argument(
         "-m", "--monitor", type=int, default=None,
-        help="Monitor index to show the overlay on (default: compositor's choice)",
+        help="Monitor index to show the overlay on (default: primary monitor)",
     )
     p.add_argument(
         "--opacity", type=float, default=1.0,
-        help="Overall overlay opacity, 0.0-1.0 (default: 1.0)",
+        help="Overall overlay opacity, 0.0-1.0 (default: %(default)s)",
     )
     p.add_argument(
         "--canvas-width", type=int, default=1920,
         help="Width the overlay page was designed for (your Lumia/OBS canvas "
              "width). The page is zoomed so this width fills the monitor, "
-             "like an OBS browser source. 0 disables scaling. Default: 1920",
+             "like an OBS browser source. 0 disables scaling. "
+             "(default: %(default)s)",
     )
     p.add_argument(
         "--no-tray", action="store_true",
@@ -70,6 +136,7 @@ def parse_args():
         "--debug", action="store_true",
         help="Draw a red border around the overlay and enable the web inspector",
     )
+    p.set_defaults(**load_config())
     return p.parse_args()
 
 
@@ -82,7 +149,8 @@ def read_url(args):
                 return line.strip()
     except FileNotFoundError:
         pass
-    sys.exit(f"No URL given and {DEFAULT_URL_FILE} is missing or empty.")
+    fail(f"No overlay URL found. Put your overlay URL on the first line of "
+         f"{DEFAULT_URL_FILE}.")
 
 
 def create_tray_icon(gi, Gtk, on_reload, on_quit):
@@ -140,17 +208,16 @@ def main():
     from gi.repository import Gdk, GLib, Gtk, GtkLayerShell, WebKit2
 
     if not GtkLayerShell.is_supported():
-        sys.exit(
-            "The compositor does not support wlr-layer-shell "
-            "(are you running a Wayland session?)."
-        )
+        fail("Your desktop doesn't support the wlr-layer-shell protocol. "
+             "Glassbox Overlay needs a Wayland session on a desktop such as "
+             "KDE Plasma, Sway or Hyprland (GNOME isn't supported).")
 
     window = Gtk.Window(title="Glassbox Overlay")
     window.set_app_paintable(True)
     screen = window.get_screen()
     visual = screen.get_rgba_visual()
     if visual is None:
-        sys.exit("No RGBA visual available; transparency is not possible.")
+        fail("No RGBA visual available; transparency is not possible.")
     window.set_visual(visual)
 
     # Layer-shell: topmost layer, cover the whole output, ignore panels,
@@ -168,8 +235,8 @@ def main():
     if args.monitor is not None:
         monitor = display.get_monitor(args.monitor)
         if monitor is None:
-            sys.exit(f"Monitor {args.monitor} not found "
-                     f"({display.get_n_monitors()} available).")
+            fail(f"Monitor {args.monitor} not found "
+                 f"({display.get_n_monitors()} available, numbered from 0).")
     else:
         monitor = display.get_primary_monitor() or display.get_monitor(0)
     GtkLayerShell.set_monitor(window, monitor)
