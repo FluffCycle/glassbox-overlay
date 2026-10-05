@@ -20,6 +20,8 @@ show up on your own screen as well as on stream.
   WebKit2GTK 4.1
 - GStreamer plugins for the video formats your overlay uses (usually H.264
   and/or VP9)
+- Optional: libayatana-appindicator (or the older libappindicator) for the
+  system tray icon. Without it, the overlay still runs, just with no tray icon.
 
 Tested on Fedora with KDE Plasma 6.
 
@@ -31,7 +33,7 @@ Install the dependencies for your distribution.
 
 ```sh
 sudo dnf install gtk-layer-shell webkit2gtk4.1 python3-gobject python3-cairo \
-    gstreamer1-plugins-good
+    gstreamer1-plugins-good libayatana-appindicator-gtk3
 ```
 
 Fedora's own repositories can't play every video format. If an alert video
@@ -42,14 +44,15 @@ install `gstreamer1-plugin-libav`.
 
 ```sh
 sudo pacman -S gtk-layer-shell webkit2gtk-4.1 python-gobject python-cairo \
-    gst-plugins-good gst-libav
+    gst-plugins-good gst-libav libayatana-appindicator
 ```
 
 **Debian / Ubuntu**
 
 ```sh
 sudo apt install gir1.2-gtklayershell-0.1 gir1.2-webkit2-4.1 python3-gi \
-    python3-gi-cairo gstreamer1.0-plugins-good gstreamer1.0-libav
+    python3-gi-cairo gstreamer1.0-plugins-good gstreamer1.0-libav \
+    gir1.2-ayatanaappindicator3-0.1
 ```
 
 Then get the code:
@@ -85,11 +88,20 @@ Don't commit `glassbox-overlay-source.txt` to a public repository.
 | `-m N`, `--monitor N` | Show the overlay on monitor `N` (0, 1, ...). By default it uses the primary monitor. |
 | `--canvas-width W` | The width your overlay page was designed for, i.e. your OBS or overlay-tool canvas width. The page is scaled so that width fills the monitor. Default: `1920`. `0` turns off scaling. |
 | `--opacity X` | Opacity of the whole overlay, from `0.0` to `1.0`. Default: `1.0`. |
+| `--no-tray` | Don't show the system tray icon. |
 | `--debug` | Draw a red border around the overlay so you can see where it is, and enable the WebKit inspector. |
 
-### Stopping it
+### Tray icon and stopping it
 
-The overlay never takes input, so you can't close it by clicking. Press Ctrl+C
+The overlay never takes input, so you can't close it by clicking on it.
+Instead, while it's running, a Glassbox Overlay icon appears in your system
+tray. Click or right-click it for:
+
+- **Reload overlay:** reload the page, e.g. after changing the overlay in your
+  streaming tool.
+- **Quit:** close Glassbox Overlay.
+
+Without the tray icon (no AppIndicator library, or `--no-tray`), press Ctrl+C
 in the terminal it's running in, or run:
 
 ```sh
@@ -121,6 +133,9 @@ automatically.
 
 - **Nothing shows up, or the screen goes black:** try
   `WEBKIT_DISABLE_DMABUF_RENDERER=1 ./glassbox-overlay.py`.
+- **No tray icon:** install the AppIndicator package listed for your
+  distribution under [Installation](#installation). The terminal shows "No
+  AppIndicator library found" when it's missing.
 - **"gtk-layer-shell is not installed":** install the gtk-layer-shell package
   for your distribution (see [Installation](#installation)).
 - **"The compositor does not support wlr-layer-shell":** you're on GNOME or an

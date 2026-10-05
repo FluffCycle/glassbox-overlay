@@ -18,6 +18,7 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_URL_FILE = SCRIPT_DIR / "glassbox-overlay-source.txt"
+TRAY_ICON = SCRIPT_DIR / "glassbox-overlay.svg"
 
 
 def ensure_layer_shell_preloaded():
@@ -62,6 +63,10 @@ def parse_args():
              "like an OBS browser source. 0 disables scaling. Default: 1920",
     )
     p.add_argument(
+        "--no-tray", action="store_true",
+        help="Don't show a system tray icon",
+    )
+    p.add_argument(
         "--debug", action="store_true",
         help="Draw a red border around the overlay and enable the web inspector",
     )
@@ -78,6 +83,47 @@ def read_url(args):
     except FileNotFoundError:
         pass
     sys.exit(f"No URL given and {DEFAULT_URL_FILE} is missing or empty.")
+
+
+def create_tray_icon(gi, Gtk, on_reload, on_quit):
+    """System tray icon (StatusNotifierItem) with Reload and Quit actions.
+
+    Returns None if no AppIndicator library is installed; the overlay works
+    fine without it.
+    """
+    AppIndicator = None
+    for namespace in ("AyatanaAppIndicator3", "AppIndicator3"):
+        try:
+            gi.require_version(namespace, "0.1")
+            AppIndicator = getattr(
+                __import__("gi.repository", fromlist=[namespace]), namespace)
+            break
+        except (ImportError, ValueError):
+            continue
+    if AppIndicator is None:
+        print("No AppIndicator library found; running without a tray icon.",
+              file=sys.stderr)
+        return None
+
+    icon = str(TRAY_ICON) if TRAY_ICON.exists() else "video-display"
+    indicator = AppIndicator.Indicator.new(
+        "glassbox-overlay", icon,
+        AppIndicator.IndicatorCategory.APPLICATION_STATUS)
+    indicator.set_title("Glassbox Overlay")
+    indicator.set_status(AppIndicator.IndicatorStatus.ACTIVE)
+
+    menu = Gtk.Menu()
+    title = Gtk.MenuItem(label="Glassbox Overlay")
+    title.set_sensitive(False)
+    reload_item = Gtk.MenuItem(label="Reload overlay")
+    reload_item.connect("activate", lambda _: on_reload())
+    quit_item = Gtk.MenuItem(label="Quit")
+    quit_item.connect("activate", lambda _: on_quit())
+    for item in (title, Gtk.SeparatorMenuItem(), reload_item, quit_item):
+        menu.append(item)
+    menu.show_all()
+    indicator.set_menu(menu)
+    return indicator
 
 
 def main():
@@ -209,6 +255,15 @@ def main():
         signal_add = GLib.unix_signal_add
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal_add(GLib.PRIORITY_DEFAULT, sig, Gtk.main_quit)
+
+    # Keep a reference so the tray icon isn't garbage collected.
+    tray = None
+    if not args.no_tray:
+        tray = create_tray_icon(
+            gi, Gtk,
+            on_reload=lambda: webview.load_uri(url),
+            on_quit=Gtk.main_quit,
+        )
 
     window.show_all()
     # Re-apply after mapping in case GTK reset it while creating the surface.
