@@ -1,0 +1,6 @@
+# Your private overlay URL
+glassbox-overlay-source.txt
+
+# Python
+__pycache__/
+*.pyc
