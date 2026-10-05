@@ -86,6 +86,11 @@ cd glassbox-overlay
    ./glassbox-overlay.py
    ```
 
+Only one Glassbox Overlay can run at a time, so starting it twice by accident
+doesn't play every alert twice. If it's already running, you'll get a pop-up
+saying so. To run several overlays at once, for example one per monitor, set
+`allow_multiple_instances = true` in `glassbox-overlay.conf`.
+
 If something goes wrong at startup, such as a missing URL or a bad setting,
 Glassbox Overlay shows an error dialog explaining why. When it's run from a
 terminal, it prints the error there instead.
@@ -111,6 +116,7 @@ try a different URL on monitor 1:
 | `opacity` | `--opacity X` | Opacity of the whole overlay, from `0.0` to `1.0`. Default: `1.0`. |
 | `tray` | `--no-tray` | Show the system tray icon. Default: `true`. |
 | `debug` | `--debug` | Draw a red border around the overlay so you can see where it is, and enable the WebKit inspector. Default: `false`. |
+| `allow_multiple_instances` | `--allow-multiple-instances` | Allow more than one Glassbox Overlay to run at the same time. Default: `false`. |
 | — | `url` (first argument) | Use this overlay URL instead of the one in `glassbox-overlay-source.txt`. |
 
 ### Tray icon and stopping it

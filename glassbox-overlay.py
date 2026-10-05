@@ -12,9 +12,11 @@ Same approach as Discover: GTK3 + gtk-layer-shell + WebKit2GTK.
 import argparse
 import configparser
 import ctypes.util
+import fcntl
 import os
 import signal
 import sys
+import tempfile
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -23,25 +25,60 @@ CONFIG_FILE = SCRIPT_DIR / "glassbox-overlay.conf"
 TRAY_ICON = SCRIPT_DIR / "glassbox-overlay.svg"
 
 
+def show_dialog(title, message, error=True):
+    try:
+        import gi
+        gi.require_version("Gtk", "3.0")
+        from gi.repository import Gtk
+        dialog = Gtk.MessageDialog(
+            message_type=(Gtk.MessageType.ERROR if error
+                          else Gtk.MessageType.INFO),
+            buttons=Gtk.ButtonsType.CLOSE,
+            text=title,
+        )
+        dialog.set_title("Glassbox Overlay")
+        dialog.format_secondary_text(message)
+        dialog.run()
+    except Exception:
+        pass
+
+
 def fail(message):
     """Exit with an error, also shown in a dialog when there's no terminal
     to print it to (e.g. launched by double-clicking in a file manager)."""
     print(message, file=sys.stderr)
     if not sys.stderr.isatty():
-        try:
-            import gi
-            gi.require_version("Gtk", "3.0")
-            from gi.repository import Gtk
-            dialog = Gtk.MessageDialog(
-                message_type=Gtk.MessageType.ERROR,
-                buttons=Gtk.ButtonsType.CLOSE,
-                text="Glassbox Overlay couldn't start",
-            )
-            dialog.format_secondary_text(message)
-            dialog.run()
-        except Exception:
-            pass
+        show_dialog("Glassbox Overlay couldn't start", message)
     sys.exit(1)
+
+
+def ensure_single_instance(allow_multiple):
+    """Exit with a pop-up if another instance is already running.
+
+    Instances started with allow_multiple still take the lock when it's
+    free, so a normal launch afterwards is still refused.
+
+    Holds an exclusive lock on a per-user lock file for the life of the
+    process. The kernel releases it when the process exits, even if it
+    crashes, so a stale lock can never block a fresh start.
+    """
+    lock_dir = os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()
+    lock_path = Path(lock_dir) / f"glassbox-overlay-{os.getuid()}.lock"
+    lock_file = open(lock_path, "w")
+    try:
+        fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        if allow_multiple:
+            return None
+        message = ("Glassbox Overlay is already running. To close it, use "
+                   "Quit in its system tray icon.\n\nTo run more than one "
+                   "overlay at a time, set allow_multiple_instances = true in "
+                   f"{CONFIG_FILE.name}.")
+        print(message, file=sys.stderr)
+        show_dialog("Glassbox Overlay is already running", message,
+                    error=False)
+        sys.exit(1)
+    return lock_file  # keep open: closing it releases the lock
 
 
 def ensure_layer_shell_preloaded():
@@ -82,6 +119,7 @@ def load_config():
         "opacity": section.getfloat,
         "tray": section.getboolean,
         "debug": section.getboolean,
+        "allow_multiple_instances": section.getboolean,
     }
     for key in section:
         if key not in getters:
@@ -135,6 +173,11 @@ def parse_args():
     p.add_argument(
         "--debug", action="store_true",
         help="Draw a red border around the overlay and enable the web inspector",
+    )
+    p.add_argument(
+        "--allow-multiple-instances", action="store_true",
+        help="Allow this instance to run alongside others (by default only "
+             "one Glassbox Overlay can run at a time)",
     )
     p.set_defaults(**load_config())
     return p.parse_args()
@@ -198,6 +241,8 @@ def main():
     ensure_layer_shell_preloaded()
     args = parse_args()
     url = read_url(args)
+    # Held for the life of the process; see ensure_single_instance().
+    instance_lock = ensure_single_instance(args.allow_multiple_instances)
 
     import gi
     gi.require_version("GtkLayerShell", "0.1")
