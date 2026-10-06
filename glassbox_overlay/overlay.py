@@ -112,7 +112,10 @@ def ensure_single_instance(allow_multiple, config_file):
     """
     lock_dir = os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()
     lock_path = Path(lock_dir) / f"glassbox-overlay-{os.getuid()}.lock"
-    lock_file = open(lock_path, "w")
+    # The fallback is the shared temp dir, where another user could plant a
+    # symlink at this name: don't follow it, and don't truncate what's there.
+    fd = os.open(lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    lock_file = os.fdopen(fd, "r+")
     try:
         fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
